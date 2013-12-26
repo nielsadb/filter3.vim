@@ -1,15 +1,9 @@
 " TODO
-" - make search buffer open:
-"   <CR> = jump to line + commit changes
-"   s = preview (see below)
-"   f = filter again (use original query)
-"   <Esc> = revert/cancel
-" - how to handle changes? (don't allow / propopagate to original?)
-" - inverted usage: fill screen with filtered results
-"     only for previewing go to split screen
-" - escape search queries? (how to handle /)
-" - input @/ quickly via insert mode shortcut?
-" - reuse same buffer
+" - Easily enter @/ as term.
+" - Preview function in split windows.
+" - Reuse same buffer.
+" - Allow changes and propagte to original?
+" - Keep 'normal' mode?
 
 function! s:CopyContentsFromSource()
   normal! gg"_dG
