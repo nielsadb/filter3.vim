@@ -1,28 +1,77 @@
 " TODO
-" - Preview function in split windows.
-" - Reuse same buffer.
 " - Allow changes and propagte to original?
+" - Reuse same buffer.
 " - Don't pollute the undo stack
 " - Keep 'normal' mode?
+
+function! <SID>UpdatePreview()
+  let winnr = winnr()
+  let line_nr = matchlist(getline('.'), '^\W*\(\d\+\)')[1]
+
+  exe b:filter_preview_window.'wincmd w'
+  exe 'normal! '.line_nr.'Gzz'
+
+  redraw
+  setlocal invcursorline
+  redraw
+  sleep 200m
+  setlocal invcursorline
+  redraw
+
+  exe winnr.'wincmd w'
+endfunction
+
+function! s:ClosePreviewWindow()
+  if exists('b:filter_preview_window')
+    au! CursorMoved <buffer>
+    let winnr = winnr()
+    exe b:filter_preview_window.'wincmd w'
+    wincmd c
+    exe winnr.'wincmd w'
+    unlet b:filter_preview_window
+  end
+endfunction
+
+function! <SID>ToggleSplitPreview()
+  if exists('b:filter_preview_window')
+    call s:ClosePreviewWindow()
+  else
+    split
+    let winnr = winnr()
+    for i in range(1, winnr('$'))
+      if winbufnr(i) == bufnr('%') && i != winnr
+        let b:filter_preview_window = i
+      end
+    endfor
+
+    exe b:filter_preview_window.'wincmd w'
+    exe 'buffer '.b:filter_srcbufid
+
+    exe winnr.'wincmd w'
+    call <SID>UpdatePreview()
+    au CursorMoved <buffer> call <SID>UpdatePreview()
+  end
+endfunction
 
 function! s:CopyContentsFromSource()
   normal! gg"_dG
   let i = 1
   for line in getbufline(b:filter_srcbufid, 1, '$')
     call append('$', printf('%4d:  %s', i, line))
-    let i = i + 1
+    let i += 1
   endfor
   normal! gg"_dd
   redraw
 endfunction
 
-function! AcceptSelection()
+function! <SID>AcceptSelection()
   let line_nr = matchlist(getline('.'), '^\W*\(\d\+\)')[1]
-  call CancelFilter()
+  call <SID>CancelFilter()
   exe 'normal! '.line_nr.'Gzz'
 endfunction
 
-function! CancelFilter()
+function! <SID>CancelFilter()
+  call s:ClosePreviewWindow()
   let targetbufid = b:filter_targetbufid
   silent exe 'buffer '.b:filter_srcbufid
   silent exe 'bwipe! '.targetbufid
@@ -42,32 +91,33 @@ function! s:PrepareFilterBuffer()
     let b:filter_targetbufid = bufnr('%')
     let b:filter_terms = []
     let b:filter_srcbufid = srcbufid
-    setlocal buftype=nofile bufhidden=hide noswapfile winfixheight nowrap
-    setlocal nocursorline nonumber
+    setlocal buftype=nofile bufhidden=hide noswapfile winfixheight noundofile
+    setlocal nocursorline nonumber nowrap 
     exe 'setlocal filetype='.srcft
 
     call s:CopyContentsFromSource()
     exe 'normal! '.top_row.'z+'
     redraw
 
-    nmap <buffer> f     :call StartFiltering()<CR>
-    nmap <buffer> <CR>  :call AcceptSelection()<CR>:echo<CR>
-    nmap <buffer> <ESC> :call CancelFilter()<CR>:echo<CR>
+    nmap <buffer> f     :call Filter3_Start()<CR>
+    nmap <buffer> <CR>  :call <SID>AcceptSelection()<CR>:echo<CR>
+    nmap <buffer> <ESC> :call <SID>CancelFilter()<CR>:echo<CR>
+    nmap <buffer> s     :call <SID>ToggleSplitPreview()<CR>:echo<CR>
 
   else
     setlocal nocursorline nonumber noreadonly
   end
 endfunction
 
-function! StartFiltering()
+function! Filter3_Start()
   call s:PrepareFilterBuffer()
 
   let res = s:EditLoop()
   if res == 3
-    call CancelFilter()
+    call <SID>CancelFilter()
   else
     if line('$') == 1
-      call AcceptSelection()
+      call <SID>AcceptSelection()
     else
       setlocal cursorline readonly
       normal! gg
@@ -156,13 +206,13 @@ function! s:EditLoop()
     end
 
     if mode < 2
-      call MatchingLineNrs()
+      call s:MatchingLineNrs()
     end
   endwhile
   return mode
 endfunction
 
-function! MatchingLineNrs()
+function! s:MatchingLineNrs()
   let alt = []
   let and = []
   let not = []
