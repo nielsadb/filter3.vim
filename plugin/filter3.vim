@@ -66,15 +66,28 @@ endfunction
 
 function! <SID>AcceptSelection()
   let line_nr = matchlist(getline('.'), '^\W*\(\d\+\)')[1]
-  call <SID>CancelFilter()
+  call <SID>Stop()
   exe 'normal! '.line_nr.'Gzz'
 endfunction
 
-function! <SID>CancelFilter()
+function! <SID>Stop()
+  if !empty(b:filter_starred)
+    let @s = ''
+    for line_nr in b:filter_starred
+      let @s = @s . getbufline(b:filter_srcbufid, line_nr)[0] . "\n"
+    endfor
+  end
   call s:ClosePreviewWindow()
   let targetbufid = b:filter_targetbufid
   silent exe 'buffer '.b:filter_srcbufid
   silent exe 'bwipe! '.targetbufid
+endfunction
+
+function! <SID>ToggleStarLine()
+  let line_nr = str2nr(matchlist(getline('.'), '^\W*\(\d\+\)')[1])
+  if index(b:filter_starred, line_nr) == -1
+    call add(b:filter_starred, line_nr)
+  end
 endfunction
 
 function! s:PrepareFilterBuffer()
@@ -91,6 +104,7 @@ function! s:PrepareFilterBuffer()
     let b:filter_targetbufid = bufnr('%')
     let b:filter_terms = []
     let b:filter_srcbufid = srcbufid
+    let b:filter_starred = []
     setlocal buftype=nofile bufhidden=hide noswapfile winfixheight noundofile
     setlocal nocursorline nonumber nowrap 
     exe 'setlocal filetype='.srcft
@@ -101,8 +115,9 @@ function! s:PrepareFilterBuffer()
 
     nmap <buffer> f     :call Filter3_Start()<CR>
     nmap <buffer> <CR>  :call <SID>AcceptSelection()<CR>:echo<CR>
-    nmap <buffer> <ESC> :call <SID>CancelFilter()<CR>:echo<CR>
+    nmap <buffer> <ESC> :call <SID>Stop()<CR>:echo<CR>
     nmap <buffer> s     :call <SID>ToggleSplitPreview()<CR>:echo<CR>
+    nmap <buffer> y     :call <SID>ToggleStarLine()<CR>
 
   else
     setlocal nocursorline nonumber noreadonly
@@ -114,7 +129,7 @@ function! Filter3_Start()
 
   let res = s:EditLoop()
   if res == 3
-    call <SID>CancelFilter()
+    call <SID>Stop()
   else
     if line('$') == 1
       call <SID>AcceptSelection()
@@ -238,13 +253,13 @@ function! s:MatchingLineNrs()
 
   let searchreg = @/
   if !empty(alt)
-    silent! exe '%v/'.join(alt, '\|').'/d'
+    silent! exe '%v/'.join(alt, '\|').'/d _'
   end
   if !empty(not)
-    silent! exe '%g/'.join(not, '\|').'/d'
+    silent! exe '%g/'.join(not, '\|').'/d _'
   end
   for and_term in and
-    silent! exe '%v/'.and_term.'/d'
+    silent! exe '%v/'.and_term.'/d _'
   endfor
   let @/ = searchreg
 
