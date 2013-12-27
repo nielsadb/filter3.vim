@@ -1,8 +1,8 @@
 " TODO
-" - Easily enter @/ as term.
 " - Preview function in split windows.
 " - Reuse same buffer.
 " - Allow changes and propagte to original?
+" - Don't pollute the undo stack
 " - Keep 'normal' mode?
 
 function! s:CopyContentsFromSource()
@@ -129,6 +129,17 @@ function! s:EditLoop()
         end
       elseif ch == 13                               " <CR>
         let mode = 2                                " STOP
+      elseif ch == 47                               " /
+        if len(terms[-1]) == 1
+          if @/[0:1] == '\<' && @/[-2:-1] == '\>'
+            let terms[-1] = terms[-1].@/[2:-3]
+          else
+            let terms[-1] = terms[-1].@/
+          end
+          call add(terms, terms[-1][0])
+        else
+          let terms[-1] = terms[-1].'/'
+        end
       elseif type(ch) == 0                          " No special key
         let terms[-1] = terms[-1].nr2char(ch)
       elseif type(ch) == 1 && ch[1:] == 'ku'        " <Up>
